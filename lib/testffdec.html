@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>ffdec.js</title>
+    <script type="text/javascript" src="/jslib/jquery-3.5.1.min.js"></script>
+  <body>
+
+    <div>
+      <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1 width="960" height="540"></canvas>
+
+      <!-- 顶点Shader -->
+      <script id="vertexShader" type="x-shader/x-vertex">
+        precision mediump float;
+        attribute vec4 vertex_screen;
+        attribute vec2 vertex_texture;
+        varying vec2 texture_pos;
+        void main(void)
+        {
+          gl_Position = vertex_screen;
+          texture_pos = vertex_texture;
+        }
+      </script>
+
+      <!-- 片段Shader -->
+      <script id="fragmentShader" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec2 texture_pos;
+        uniform sampler2D texture_y;
+        uniform sampler2D texture_u;
+        uniform sampler2D texture_v;
+        void main(void)
+        {
+          vec3 yuv;
+          vec3 rgb;
+          yuv.x = texture2D(texture_y, texture_pos).x;
+          yuv.y = texture2D(texture_u, texture_pos).x-0.5;
+          yuv.z = texture2D(texture_v, texture_pos).y-0.5;
+          rgb = mat3(1,1,1,
+                    0,-0.39465,2.03211,
+                    1.13983,-0.58060,0) * yuv;
+          gl_FragColor = vec4(rgb, 1);
+        }
+      </script>
+    </div>
+
+    <script type="text/javascript" src="ffdec-1.0.0.min.js"></script>
+    <script type='text/javascript'>
+$(document).ready(function(){
+      var Module = ffdecjs
+
+      // 创建gl程序
+      var createProgramFromScripts = function(gl, vertex, fragment){
+        var create_shader = function(t, source){
+          //console.log("create_shader", t, source);
+          var shader = gl.createShader(t); // gl.VERTEX_SHADER, gl.FRAGMENT_SHADER
+          gl.shaderSource(shader, source);
+          gl.compileShader(shader);
+
+          // glGetShaderiv, compiled
+          // TODO. error?
+
+          return shader;
+        };
+        
+        var program = gl.createProgram();
+        
+        var shader1 = create_shader(gl.VERTEX_SHADER, $('#'+vertex).text());
+        var shader2 = create_shader(gl.FRAGMENT_SHADER, $('#'+fragment).text());
+        
+        gl.attachShader(program, shader1);
+        gl.attachShader(program, shader2);
+
+        gl.linkProgram(program);
+
+        return program;
+      }
+
+      var canvas = document.getElementById("canvas");
+      var gl = canvas.getContext("experimental-webgl");
+
+      var program = createProgramFromScripts(gl, "vertexShader", "fragmentShader");
+      gl.useProgram(program);
+      
+      // 从glsl中获取参数
+      var texture_y = gl.getUniformLocation(program, "texture_y");
+      var texture_u = gl.getUniformLocation(program, "texture_u");
+      var texture_v = gl.getUniformLocation(program, "texture_v");
+
+      var vertex_screen = gl.getAttribLocation(program, "vertex_screen");
+      var vertex_tex = gl.getAttribLocation(program, "vertex_texture");
+
+      // 创建y,u,v纹理
+      var tex_id_y = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex_id_y);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      var tex_id_u = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex_id_u);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      var tex_id_v = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex_id_v);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      // 纹理顶点(前8); 屏幕顶点(后8)
+      var buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                                        0.0, 1.0,
+                                        1.0, 1.0,
+                                        0.0, 0.0,
+                                        1.0, 0.0,
+                                        -1.0, -1.0,
+                                        1.0, -1.0,
+                                        -1.0, 1.0,
+                                        1.0, 1.0]),
+                                        gl.STATIC_DRAW);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+      gl.validateProgram(program);
+
+      var draw_begin = function(){
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.clearColor(0.3, 0.3, 0.3, 1.0);
+      }
+
+      var draw_end = function(){
+
+      }
+
+      var draw_yuv = function(frame){
+        var w = frame.w;
+        var h = frame.h;
+        var y = frame.y;
+        var u = frame.u;
+        var v = frame.v;
+        var pitch_y = frame.pitch_y;
+        var pitch_u = frame.pitch_u;
+        var pitch_v = frame.pitch_v;
+
+        gl.useProgram(program);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+
+        // 顶点
+        gl.vertexAttribPointer(vertex_screen, 2, gl.FLOAT, false, 8, 32);
+        gl.enableVertexAttribArray(vertex_screen)
+        gl.vertexAttribPointer(vertex_tex, 2, gl.FLOAT, false, 8, 0);
+        gl.enableVertexAttribArray(vertex_tex)
+
+        // Y
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex_id_y);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, pitch_y, h, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, y);
+        gl.uniform1i(texture_y, 0);
+
+        // U
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, tex_id_u);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, pitch_u, h / 2, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, u);
+        gl.uniform1i(texture_u, 1);
+
+        // V
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, tex_id_v);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, pitch_v, h / 2, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, v);
+        gl.uniform1i(texture_v, 2);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        gl.disableVertexAttribArray(vertex_tex);
+        gl.disableVertexAttribArray(vertex_screen);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.validateProgram(program);
+      }
+
+      var rgb_to_yuv = function(r, g, b) {
+        var y = (66*r + 129*g + 25*b + 128) / 256 + 16;
+        var u = (-38*r - 74*g + 112*b + 128) / 256 + 128;
+        var v = (112*r - 94*g - 18*b + 128) / 256 + 128;
+        return {y:parseInt(y), u:parseInt(u), v:parseInt(v)}
+      }
+
+      var yuv_init = function(){
+        var color = rgb_to_yuv(0, 255, 0);
+
+        var frame = {
+          w : 432,
+          h : 240,
+          pitch_y : 432,
+          pitch_u : 216,
+          pitch_v : 216
+        }
+        
+        var h_uv = frame.h / 2;
+        frame.y = new Uint8Array(frame.pitch_y * frame.h);
+        frame.u = new Uint8Array(frame.pitch_u * h_uv); 
+        frame.v = new Uint8Array(frame.pitch_v * h_uv);
+
+        for (var i = 0 ; i < frame.pitch_y * frame.h; i++){
+          frame.y[i] = color.y;
+        }
+
+        for(var i = 0; i < frame.pitch_u * h_uv; i++){
+          frame.u[i] = color.u;
+        }
+
+        for(var i = 0; i < frame.pitch_v * h_uv; i++){
+          frame.v[i] = color.v;
+        }
+
+        return frame;
+      }
+
+      var testFile = function(){
+        var data = new Uint8Array(37);
+
+        for (var i = 0; i < data.length; i++) {
+          data[i] = 65 + i;
+        }
+
+        FS.mkdir('/data');
+        var stream = FS.open('/data/aaaa', 'w+');
+        FS.write(stream, data, 0, data.length);
+        FS.close(stream);
+
+        ffdecjs.print_file("/data/aaaa", "");
+      };
+
+      ffdecjs.postRun = function() {
+        ffdecjs.hello(1000);
+
+        ffdecjs.open("/data/aaaa", "");
+
+        setInterval(function(){
+          var frame = ffdecjs.get_next_frame();
+          //var frame = yuv_init();
+
+          if (frame){
+            draw_begin();
+            draw_yuv(frame);
+            draw_end();
+          }
+
+          //console.log("frame:", frame);
+        }, 33);
+
+        //ffdecjs.close();
+      };
+});
+    </script>
+  </body>
+</html>
