@@ -4,7 +4,6 @@
 #include "em_log.h"
 #include "mem/klb_mem.h"
 #include "emscripten/em_asm.h"
-#include "libavcodec/avcodec.h"
 #include "list/klb_list.h"
 #include <assert.h>
 
@@ -116,6 +115,20 @@ int main_app_pop_head(main_app_t* p_app)
     return 0;
 }
 
+int main_app_open(main_app_t* p_app, const char* p_filename)
+{
+    assert(NULL == p_app->p_input);
+    p_app->p_input = ffmpeg_input_create(p_filename);
+    //assert(NULL != p_app->p_input);
+
+    return (NULL != p_app->p_input) ? 0 : 1;
+}
+
+void main_app_close(main_app_t* p_app)
+{
+    KLB_FREE_BY(p_app->p_input, ffmpeg_input_destroy);
+}
+
 static int main_app_push_yuv_wav(main_app_t* p_app, em_frame_yuv_wav_t* p_yuv_wav)
 {
     ffdecjs_media_t* p_media = KLB_MALLOC(ffdecjs_media_t, 1, 0);
@@ -151,6 +164,7 @@ int main_app_run(main_app_t* p_app, int64_t now_ticks)
         return 0;
     }
 
+#if defined(USE_TEST_RES)
     em_buf_t* p_buf = tmem_flv_get_next(p_app->p_tmem_flv);
 
     if (NULL != p_buf)
@@ -176,6 +190,40 @@ int main_app_run(main_app_t* p_app, int64_t now_ticks)
 
         em_buf_unref_next(p_buf);
     }
+#else
+    if (NULL == p_app->p_input)
+    {
+        return 0;
+    }
+
+    //int data_type = 0;
+    //AVPacket* p_pkt = ffmpeg_input_read(p_app->p_input, &data_type);
+    //if (NULL != p_pkt)
+    //{
+    //    if (FFMPEG_AVPACKET_VIDEO == data_type)
+    //    {
+    //        ffmpeg_dec_t* p_dec = main_app_get_dec(p_app, ffmpeg_input_video_id(p_app->p_input));
+    //        if (NULL != p_dec)
+    //        {
+    //            em_frame_yuv_wav_t* p_yuv_wav = ffmpeg_dec_decode2(p_dec, p_pkt->data, p_pkt->size, p_pkt->pts, p_pkt->dts);
+    //            if (NULL != p_yuv_wav)
+    //            {
+    //                //LOG("ffmpeg_dec_decode2 yuv wav:[%d,%d]", p_yuv_wav->w, p_yuv_wav->h);
+    //                main_app_push_yuv_wav(p_app, p_yuv_wav);
+    //            }
+    //        }
+    //    }
+
+    //    ffmpeg_av_packet_free(p_pkt);
+    //}
+
+    em_frame_yuv_wav_t* p_yuv_wav = ffmpeg_input_read_frame(p_app->p_input);
+    if (NULL != p_yuv_wav)
+    {
+        main_app_push_yuv_wav(p_app, p_yuv_wav);
+    }
+
+#endif
 
     return 0;
 }

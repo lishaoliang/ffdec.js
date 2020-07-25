@@ -5,7 +5,7 @@
 #include "list/klb_list.h"
 #include "ffmpeg_com.h"
 
-#define USE_TEST_RES        1
+//#define USE_TEST_RES        1
 
 #if defined(USE_TEST_RES)
 #include "tmem_h264.h"
@@ -21,6 +21,7 @@ extern "C" {
 
 typedef struct main_app_t_
 {
+    ffmpeg_input_t* p_input;
     ffmpeg_dec_t*   p_dec;
     ffmpeg_enc_t*   p_enc;
 

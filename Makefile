@@ -33,7 +33,7 @@ MY_DIRS += ./third/cJSON-1.7.13
 
 # 使用wasm文件
 MY_CFLAGS += -s WASM=1 
-MY_CFLAGS += -s TOTAL_MEMORY=67108864
+MY_CFLAGS += -s TOTAL_MEMORY=536870912
 
 
 # 优化选项

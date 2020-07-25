@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include "mnp_h264_res.h"
 
 /*extern*/ main_app_t* g_main_app = NULL;       ///< 主APP
 /*extern*/ bool        g_main_hidden = false;   ///< 页面是否隐藏
@@ -20,8 +21,8 @@ static void cb_main_loop(void);
 int main() 
 {
     // 打印
-    //LOG("C https://github.com/lishaoliang/ffdec.js");
-    //LOG("C https://gitee.com/lishaoliang/ffdec.js");
+    LOG("C https://github.com/lishaoliang/ffdec.js");
+    LOG("C https://gitee.com/lishaoliang/ffdec.js");
 
     // 打印是否支持
     LOG("C emscripten_has_threading_support: %d", emscripten_has_threading_support());
@@ -55,6 +56,8 @@ static void cb_main_loop(void)
 // 导出函数
 
 /// @brief 测试打印,是否加载成功
+/// @param [in] n  数值
+/// @return int 返回n
 EMSCRIPTEN_KEEPALIVE int ffdecjs_hello(int n)
 {
     // Test
@@ -103,40 +106,71 @@ EMSCRIPTEN_KEEPALIVE char* ffdecjs_control(const char* p_cmd, const char* p_lpar
 
 /// @brief 打开待解码的文件
 /// @param [in] *p_path_name  文件路径
-/// @param [in] *p_param json格式的参数信息
-/// \n 例如: {"protocol"="WS-MNP","path"="/wsmnp"}
+/// @param [in] *p_param json 格式的参数信息
 /// @return int 0.成功; 非0.错误码
 EMSCRIPTEN_KEEPALIVE int ffdecjs_open(const char* p_path_name, const char* p_param)
 {
     //LOG("C ffdecjs_open:[%s]:[%s]", p_name, p_param);
 
-    return 0;
+    return main_app_open(g_main_app, p_path_name);
 }
 
 
-/// @brief 关闭
-/// @param [in] *p_name  名称
-/// @return int 0.成功; 非0.错误码
-EMSCRIPTEN_KEEPALIVE int ffdecjs_close(const char* p_name)
+/// @brief 关闭文件
+/// @return int 0.成功
+/// @note 关闭仅表示不再有数据被解码, 并不影响已经解码之后的数据
+EMSCRIPTEN_KEEPALIVE int ffdecjs_close()
 {
-    //LOG("C ffdecjs_close:[%s]", p_name);
+    //LOG("C ffdecjs_close");
+    main_app_close(g_main_app);
     return 0;
 }
 
+/// @brief 获取处于队列头部帧信息
+/// @return ffdecjs_media_t* 帧信息指针
+///  仅用于测试
 EMSCRIPTEN_KEEPALIVE ffdecjs_media_t* ffdecjs_get_head()
 {
     return main_app_get_head(g_main_app);
 }
 
+/// @brief 弹出(释放)掉处于队列头部帧
+/// @return int 0.成功; 非0.错误码
 EMSCRIPTEN_KEEPALIVE int ffdecjs_pop_head()
 {
     return main_app_pop_head(g_main_app);
 }
 
-/// @brief 打印文件
-/// @param [in] *p_path_name  文件路径名称
+/// @brief 写测试文件
+/// @param [in] *p_path_name  文件路径名称: eg."/xxx.flv"
 /// @return int 0.成功; 非0.错误码
-///  仅用于测试
+///  把内置的测试flv数据写成文件
+///  unix文件系统风格
+EMSCRIPTEN_KEEPALIVE int ffdecjs_write_test_file(const char* p_path_name)
+{
+    // "/xxx.flv"
+    if (NULL == p_path_name)
+    {
+        LOG("C ffdecjs_write_test_file fopen error!path:[NULL]");
+        return 1;
+    }
+
+    FILE* pf = fopen(p_path_name, "wb");
+    if (NULL != pf)
+    {
+        fwrite(g_res_key_map[1].p_data, 1, g_res_key_map[1].data_len, pf);
+        fclose(pf);
+        return 0;
+    }
+
+    LOG("C ffdecjs_write_test_file fopen error!path:[%s]", p_path_name);
+    return 1;
+}
+
+/// @brief 打印文件
+/// @param [in] *p_path_name  文件路径名称: eg."/xxx.flv"
+/// @return int 0.成功; 非0.错误码
+///  unix文件系统风格
 EMSCRIPTEN_KEEPALIVE int ffdecjs_print_file(const char* p_path_name)
 {
     if (NULL == p_path_name)

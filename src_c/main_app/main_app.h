@@ -73,6 +73,11 @@ void main_app_stop(main_app_t* p_app);
 ffdecjs_media_t* main_app_get_head(main_app_t* p_app);
 int main_app_pop_head(main_app_t* p_app);
 
+
+int main_app_open(main_app_t* p_app, const char* p_filename);
+void main_app_close(main_app_t* p_app);
+
+
 int main_app_run(main_app_t* p_app, int64_t now_ticks);
 
 

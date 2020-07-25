@@ -8,6 +8,13 @@
   <body>
 
     <div>
+      <p>
+        <input type="button" id="playTest" value="播放测试数据"/>
+        <input type="file" id="playFile" accept="application/*"/>
+      </p>
+    </div>
+
+    <div>
       <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1 width="960" height="540"></canvas>
 
       <!-- 顶点Shader -->
@@ -50,7 +57,7 @@
 $(document).ready(function(){
       var Module = ffdecjs
 
-      // 创建gl程序
+      // 创建glsl程序
       var createProgramFromScripts = function(gl, vertex, fragment){
         var create_shader = function(t, source){
           //console.log("create_shader", t, source);
@@ -66,8 +73,8 @@ $(document).ready(function(){
         
         var program = gl.createProgram();
         
-        var shader1 = create_shader(gl.VERTEX_SHADER, $('#'+vertex).text());
-        var shader2 = create_shader(gl.FRAGMENT_SHADER, $('#'+fragment).text());
+        var shader1 = create_shader(gl.VERTEX_SHADER, vertex);
+        var shader2 = create_shader(gl.FRAGMENT_SHADER, fragment);
         
         gl.attachShader(program, shader1);
         gl.attachShader(program, shader2);
@@ -77,19 +84,19 @@ $(document).ready(function(){
         return program;
       }
 
-      var canvas = document.getElementById("canvas");
-      var gl = canvas.getContext("experimental-webgl");
+      var canvas = document.getElementById('canvas');
+      var gl = canvas.getContext('experimental-webgl');
 
-      var program = createProgramFromScripts(gl, "vertexShader", "fragmentShader");
+      var program = createProgramFromScripts(gl, $('#vertexShader').text(), $('#fragmentShader').text());
       gl.useProgram(program);
       
       // 从glsl中获取参数
-      var texture_y = gl.getUniformLocation(program, "texture_y");
-      var texture_u = gl.getUniformLocation(program, "texture_u");
-      var texture_v = gl.getUniformLocation(program, "texture_v");
+      var texture_y = gl.getUniformLocation(program, 'texture_y');
+      var texture_u = gl.getUniformLocation(program, 'texture_u');
+      var texture_v = gl.getUniformLocation(program, 'texture_v');
 
-      var vertex_screen = gl.getAttribLocation(program, "vertex_screen");
-      var vertex_tex = gl.getAttribLocation(program, "vertex_texture");
+      var vertex_screen = gl.getAttribLocation(program, 'vertex_screen');
+      var vertex_tex = gl.getAttribLocation(program, 'vertex_texture');
 
       // 创建y,u,v纹理
       var tex_id_y = gl.createTexture();
@@ -230,33 +237,63 @@ $(document).ready(function(){
           data[i] = 65 + i;
         }
 
-        FS.mkdir('/data');
+        //FS.mkdir('/data');
         var stream = FS.open('/data/aaaa', 'w+');
         FS.write(stream, data, 0, data.length);
         FS.close(stream);
 
-        ffdecjs.print_file("/data/aaaa", "");
+        ffdecjs.print_file('/data/aaaa');
       };
 
       ffdecjs.postRun = function() {
         ffdecjs.hello(1000);
 
-        ffdecjs.open("/data/aaaa", "");
+        FS.mkdir('/data'); // 创建"/data"目录, 后面都向这个目录写文件
+        ffdecjs.write_test_file('/data/test.flv'); // 写测试demo文件
+        //ffdecjs.print_file('/data/test.flv');
+
+        ffdecjs.open('/data/test.flv', '');
 
         setInterval(function(){
           var frame = ffdecjs.get_next_frame();
           //var frame = yuv_init();
-
           if (frame){
+            //gl.viewport(x, y, width, height); // 这里根据图像宽高与显示区域宽高,调整输出图像位置 
             draw_begin();
             draw_yuv(frame);
             draw_end();
           }
-
           //console.log("frame:", frame);
-        }, 33);
+          // frame.time = 0x8000000000000000 为无效值
+        }, 33); // 可依据帧时间戳来控制播放节奏
 
         //ffdecjs.close();
+
+        // 播放测试数据按钮
+        $("#playTest").click(function(){
+          ffdecjs.open('/data/test.flv', '');
+        });
+
+        // 选择文件播放
+        $("#playFile").change(function(){
+          console.log("play file onchange");
+          var file0 = event.target.files[0];
+          if(!!file0){
+            var reader = new FileReader();
+            reader.readAsArrayBuffer(file0);
+            reader.onload = function(){
+              // TODO. 调整为分步读取数据, 写入文件, 避免一次读取过多的数据量
+              var binary = new Uint8Array(this.result);
+              //console.log("binary", binary);
+              var stream = FS.open('/data/xxxx', 'w+');
+              FS.write(stream, binary, 0, binary.length);
+              FS.close(stream);
+              //ffdecjs.print_file('/data/playFile.mp4');
+
+              ffdecjs.open('/data/xxxx', '');
+            }
+          }
+        });
       };
 });
     </script>
